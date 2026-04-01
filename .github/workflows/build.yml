@@ -1,0 +1,57 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # 手动触发
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pysqlcipher3 pyinstaller
+
+      - name: Build EXE (interactive CLI)
+        run: |
+          pyinstaller wechat2word.spec --clean --noconfirm
+
+      - name: Build EXE (quick export)
+        run: |
+          pyinstaller quick_export.spec --clean --noconfirm
+
+      - name: Create distribution folder
+        run: |
+          New-Item -ItemType Directory -Path "dist\WeChat2Word_Portable" -Force
+          Copy-Item -Path "dist\WeChat2Word\*" -Destination "dist\WeChat2Word_Portable\" -Recurse
+          Copy-Item -Path "README.md" -Destination "dist\WeChat2Word_Portable\"
+          Copy-Item -Path "start.bat" -Destination "dist\WeChat2Word_Portable\"
+          Copy-Item -Path "requirements.txt" -Destination "dist\WeChat2Word_Portable\"
+          Get-ChildItem "dist\WeChat2Word_Portable"
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WeChat2Word-Portable
+          path: dist/WeChat2Word_Portable/
+          retention-days: 30
+
+      - name: Upload EXE files only
+        uses: actions/upload-artifact@v4
+        with:
+          name: WeChat2Word-EXE-Files
+          path: |
+            dist/WeChat2Word/WeChat2Word.exe
+            quick_export/dist/quick_export/quick_export.exe
+          retention-days: 30

@@ -1,0 +1,80 @@
+"""
+setup.bat — Windows 一键安装脚本
+双击运行即可自动创建虚拟环境并安装依赖。
+"""
+
+@echo off
+chcp 65001 >nul
+title WeChat2Word 安装程序
+
+echo.
+echo  ╔══════════════════════════════════════╗
+echo  ║      WeChat2Word 安装程序            ║
+echo  ╚══════════════════════════════════════╝
+echo.
+
+:: 检测 Python
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [✗] 未检测到 Python，请先从 https://python.org 安装 Python 3.8+
+    echo.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%i in ('python --version') do set PY_VER=%%i
+echo [+] 检测到 %PY_VER%
+
+:: 创建虚拟环境
+echo.
+echo [*] 正在创建虚拟环境...
+python -m venv .venv
+
+:: 激活虚拟环境
+call .venv\Scripts\activate.bat
+
+:: 升级 pip
+echo.
+echo [*] 正在升级 pip...
+python -m pip install --upgrade pip -q
+
+:: 安装依赖
+echo.
+echo [*] 正在安装 Python 依赖（pysqlcipher3、python-docx）...
+pip install pysqlcipher3 python-docx -q
+
+:: 检测安装结果
+pip show pysqlcipher3 >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [!] pysqlcipher3 安装失败（需要 Visual C++ Build Tools）
+    echo.
+    echo    请按以下步骤操作：
+    echo    1. 下载 Visual Studio Build Tools:
+    echo       https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio
+    echo.
+    echo    2. 安装时勾选 "C++ 生成工具"
+    echo.
+    echo    3. 重启电脑后，再次双击运行本安装脚本
+    echo.
+    echo    或使用已解密数据库模式（参见 README）
+    echo.
+    echo [*] 已安装 python-docx，可正常使用。
+    echo.
+    pause
+) else (
+    echo.
+    echo [✓] 所有依赖安装成功！
+)
+
+echo.
+echo ══════════════════════════════════════
+echo.
+echo 安装完成！运行以下命令开始使用：
+echo.
+echo   .venv\Scripts\activate.bat
+echo   python wechat2word.py
+echo.
+echo 或双击运行 start.bat 快速启动
+echo.
+pause
