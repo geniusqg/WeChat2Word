@@ -3,7 +3,7 @@ name: Build Windows EXE
 on:
   push:
     branches: [main]
-  workflow_dispatch:   # 手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,15 +13,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.8
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.8"
+          architecture: "x64"
 
-      - name: Install dependencies
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg
+          key: vcpkg-sqlcipher-v1-x64-windows-fixed
+
+      - name: Bootstrap vcpkg
+        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
-          python -m pip install --upgrade pip
-          pip install pysqlcipher3 pyinstaller
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install SQLCipher
+        run: |
+          & C:\vcpkg\vcpkg.exe install sqlcipher:x64-windows --triplet x64-windows
+
+      - name: Install deps
+        run: |
+          python -m pip install setuptools wheel pyinstaller
+
+      - name: Build pysqlcipher3 manually
+        run: |
+          $env:LIB = "C:\vcpkg\installed\x64-windows\lib;$env:LIB"
+          $env:INCLUDE = "C:\vcpkg\installed\x64-windows\include;$env:INCLUDE"
+          $env:PATH = "C:\vcpkg\installed\x64-windows\bin;$env:PATH"
+          python -c "
+import urllib.request, tarfile, os, pathlib, sys
+urllib.request.urlretrieve('https://files.pythonhosted.org/packages/source/p/pysqlcipher3/pysqlcipher3-1.2.0.tar.gz','pysqlcipher3.tar.gz')
+with tarfile.open('pysqlcipher3.tar.gz','r:gz') as t:
+    t.extractall('.')
+src = [d for d in os.listdir('.') if d.startswith('pysqlcipher3')][0]
+os.chdir(src)
+import subprocess
+r = subprocess.run([sys.executable,'setup.py','build'],env=os.environ.copy())
+if r.returncode != 0: sys.exit(1)
+r = subprocess.run([sys.executable,'setup.py','install'],env=os.environ.copy())
+if r.returncode != 0: sys.exit(1)
+print('Done!')
+"
+
+      - name: Verify pysqlcipher3
+        run: |
+          python -c "import pysqlcipher3; print('pysqlcipher3 OK:', pysqlcipher3.__version__)"
 
       - name: Build EXE (interactive CLI)
         run: |
@@ -38,7 +79,6 @@ jobs:
           Copy-Item -Path "README.md" -Destination "dist\WeChat2Word_Portable\"
           Copy-Item -Path "start.bat" -Destination "dist\WeChat2Word_Portable\"
           Copy-Item -Path "requirements.txt" -Destination "dist\WeChat2Word_Portable\"
-          Get-ChildItem "dist\WeChat2Word_Portable"
 
       - name: Upload portable package
         uses: actions/upload-artifact@v4
